@@ -18,17 +18,17 @@
 /**
  * Sets the message header with default values.
  */
-static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_type) {
+static void p2p_set_header(p2p_struct_t* p2p, p2p_header_t* header, uint8_t msg_type) {
   struct {
     uint16_t port;
     uint32_t ip;
     time_t time;
   } msg_id_seed;
 
-  header->version = 1;
-  header->ttl = 5;
+  header->version = P_VERSION;
+  header->ttl = MAX_TTL;
   header->msg_type = msg_type;
-  header->length = 0;
+	header->length = 0;
 
   header->org_port = p2p->local_addr.sin_port;
   header->org_ip = p2p->local_addr.sin_addr.s_addr;
@@ -98,7 +98,7 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   /* receive join acknowledgement, I except this type of message, if the message
    * is not the right one, the behavior may be undefined.
    */
-	if((call_state = p2p_read_message(p2p, (p2p_msg_t*) &join_response)) < 1) {
+	if((call_state = p2p_read_message(p2p, (p2p_fixed_msg_t*) &join_response)) < 1) {
 		close(client_sock);
 		return call_state;
 	}
@@ -119,13 +119,34 @@ void p2p_close(p2p_struct_t* p2p) {
   close(p2p->client_sock);
 }
 
-int p2p_read_message(p2p_struct_t* p2p, p2p_msg_t* message) {
-	char buffer[sizeof(p2p_msg_t)];
+int p2p_read_message(p2p_struct_t* p2p, p2p_fixed_msg_t* message) {
+	char buffer[sizeof(p2p_fixed_msg_t)];
 	int bytes_recvd;
 
-	if((bytes_recvd = recv(p2p->client_sock, buffer, sizeof(p2p_msg_t), 0)) < 1) {
+	if((bytes_recvd = recv(p2p->client_sock, buffer, sizeof(p2p_fixed_msg_t), 0)) < 1) {
 		return bytes_recvd;
 	}
 	memcpy(message, buffer, bytes_recvd);
 	return bytes_recvd;
 }
+
+int p2p_query(p2p_struct_t* p2p, char* key, size_t length) {
+	char* query = (char*) malloc(sizeof(p2p_header_t)+length);
+
+	memset(&query, 0, sizeof(query));
+  p2p_set_header(p2p, (p2p_header_t*) query, MSG_QUERY);
+	((p2p_header_t*) query)->length = length;
+	
+	/* copy the payload after the header */
+	memcpy(query+sizeof(p2p_header_t), key, length);
+
+	/* Send query */
+  if(send(p2p->client_sock, &query, sizeof(query), 0) != sizeof(query)) {
+		free(query);
+		return -1;
+	}
+
+	free(query);
+	return 0;
+}
+
