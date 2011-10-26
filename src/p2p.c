@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include "p2p.h"
 
 #include <stdlib.h>
@@ -7,8 +9,15 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef DEBUG
+#include <stdio.h>
+#endif
+
 #include "sfhash.h"
 
+/**
+ * Sets the message header with default values.
+ */
 static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_type) {
   struct {
     uint16_t port;
@@ -27,7 +36,7 @@ static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_
   msg_id_seed.port = ntohs(header->org_port);
   msg_id_seed.ip   = ntohl(header->org_ip);
   msg_id_seed.time = time(NULL);
-  header->msg_id = SuperFastHash((const char*) &msg_id_seed, sizeof(msg_id_seed));
+  header->msg_id = htonl(SuperFastHash((const char*) &msg_id_seed, sizeof(msg_id_seed)));
 }
 
 int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
@@ -35,7 +44,11 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   struct sockaddr_in l_addr;
   int client_sock;
   int call_state;
+  int to_receive;
   struct p2p_msg_join_req join;
+  struct p2p_msg_join_response join_response;
+  char buffer[sizeof(struct p2p_msg_join_response)];
+  char* buffer_pos;
   socklen_t l_add_len;
 
   memset(p2p, 0, sizeof(p2p));
@@ -81,7 +94,30 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
     return -1;
   }
 
-  /* TODO wait for reply ? */
+  /* receive join acknowledgement, I except this type of message, if the message
+   * is not the right one, the behavior may be undefined.
+   */
+  to_receive = sizeof(join_response);
+  buffer_pos = buffer;
+  while(to_receive > 0) {
+    int bytes = 0;
+    if((bytes = recv(client_sock, buffer_pos, sizeof(to_receive), 0)) < 1) {
+      close(client_sock);
+      return -1;
+    }
+    to_receive -= bytes;
+    buffer_pos += bytes;
+  }
+  memcpy(&join_response, buffer, sizeof(join_response));
+
+#ifdef DEBUG
+  printf("status : 0x%4.4X\n", ntohs(join_response.status));
+#endif
+
+  if(ntohs(join_response.status) != JOIN_ACC) {
+    close(client_sock);
+    return -2;
+  }
 
   p2p->local_addr = l_addr;
   p2p->client_sock = client_sock;

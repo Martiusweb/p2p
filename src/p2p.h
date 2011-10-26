@@ -15,10 +15,17 @@ struct p2p_msg_join_req {
   struct P2P_h header;
 };
 
+struct p2p_msg_join_response {
+  struct P2P_h header;
+  uint16_t status;
+};
+
 /**
  * Connects to the peer host:port.
  *
- * Returns the connected socket or and error code (< 0).
+ * Returns the connected socket or and error code (< 0) :
+ *  -1 is an undefined socket error (use errno)
+ *  -2 is an error at join acknowledgement stage
  */
 int p2p_join(p2p_struct_t* p2p, char* host, char* port);
 
