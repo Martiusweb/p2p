@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
    *    Join the peer at given port
    *    usage : -pPORT
    **/
-  static char* options = "l:j:";
+  static char* options = "h:p:";
 
   /* Parse the cli arguments */
   int opt;
@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
   }
 
   /* Start the work */
-  printf("Trying to join peer at %s...\n", optarg);
+  printf("Trying to join peer at %s...\n", host_ip);
 
   if(p2p_join(&p2p, host_ip, host_port) < 0) {
     fprintf(stderr, "Connection to peer failed. Aborting.\n");
@@ -55,5 +55,7 @@ int main(int argc, char* argv[]) {
   }
 
   p2p_close(&p2p);
+  printf("Ok, all done, Bye !\n");
+
   return 0;
 }
