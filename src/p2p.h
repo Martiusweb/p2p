@@ -1,10 +1,19 @@
 #ifndef P2P_H
 #define P2P_H
 
+#include <sys/socket.h>
+
+#include "proto.h"
+
 typedef struct {
   int client_sock;
+  struct sockaddr_in local_addr;
   void* user_data;
 } p2p_struct_t;
+
+struct p2p_msg_join_req {
+  struct P2P_h header;
+};
 
 /**
  * Connects to the peer host:port.

@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-Wall -pedantic -ansi
-OBJS=p2p.o
+OBJS=p2p.o sfhash.o
 OUT=p2p
 
 $(OUT): main.c $(OBJS)

@@ -24,6 +24,11 @@ int main(int argc, char* argv[]) {
   char* host_port;
   p2p_struct_t p2p;
 
+  if(argc < 2) {
+    fprintf(stderr, "Not enough arguments.\n");
+    return -1;
+  }
+
   while((opt = getopt(argc, argv, options)) != -1) {
     switch(opt)
     {
@@ -36,7 +41,8 @@ int main(int argc, char* argv[]) {
       case '?':
       default:
         /* getopt parse error, getopt displays a meaningful message by itself */
-        fprintf(stderr, "Something went wrong, sorry.");
+        fprintf(stderr, "Something went wrong, sorry.\n");
+        return -1;
     }
   }
 
