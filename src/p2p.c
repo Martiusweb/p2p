@@ -44,11 +44,8 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   struct sockaddr_in l_addr;
   int client_sock;
   int call_state;
-  int to_receive;
-  struct p2p_msg_join_req join;
-  struct p2p_msg_join_response join_response;
-  char buffer[sizeof(struct p2p_msg_join_response)];
-  char* buffer_pos;
+  p2p_msg_join_req_t join;
+  p2p_msg_join_response_t join_response;
   socklen_t l_add_len;
 
   memset(p2p, 0, sizeof(p2p));
@@ -94,21 +91,17 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
     return -1;
   }
 
+	/* Time to populate the p2p struct */
+  p2p->local_addr = l_addr;
+  p2p->client_sock = client_sock;
+
   /* receive join acknowledgement, I except this type of message, if the message
    * is not the right one, the behavior may be undefined.
    */
-  to_receive = sizeof(join_response);
-  buffer_pos = buffer;
-  while(to_receive > 0) {
-    int bytes = 0;
-    if((bytes = recv(client_sock, buffer_pos, sizeof(to_receive), 0)) < 1) {
-      close(client_sock);
-      return -1;
-    }
-    to_receive -= bytes;
-    buffer_pos += bytes;
-  }
-  memcpy(&join_response, buffer, sizeof(join_response));
+	if((call_state = p2p_read_message(p2p, (p2p_msg_t*) &join_response)) < 1) {
+		close(client_sock);
+		return call_state;
+	}
 
 #ifdef DEBUG
   printf("status : 0x%4.4X\n", ntohs(join_response.status));
@@ -119,11 +112,20 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
     return -2;
   }
 
-  p2p->local_addr = l_addr;
-  p2p->client_sock = client_sock;
   return client_sock;
 }
 
 void p2p_close(p2p_struct_t* p2p) {
   close(p2p->client_sock);
+}
+
+int p2p_read_message(p2p_struct_t* p2p, p2p_msg_t* message) {
+	char buffer[sizeof(p2p_msg_t)];
+	int bytes_recvd;
+
+	if((bytes_recvd = recv(p2p->client_sock, buffer, sizeof(p2p_msg_t), 0)) < 1) {
+		return bytes_recvd;
+	}
+	memcpy(message, buffer, bytes_recvd);
+	return bytes_recvd;
 }
