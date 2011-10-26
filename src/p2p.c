@@ -21,11 +21,11 @@ static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_
   header->msg_type = msg_type;
   header->length = 0;
 
-  header->org_port = ntohs(p2p->local_addr.sin_port);
+  header->org_port = p2p->local_addr.sin_port;
   header->org_ip = p2p->local_addr.sin_addr.s_addr;
 
-  msg_id_seed.port = header->org_port;
-  msg_id_seed.ip   = header->org_ip;
+  msg_id_seed.port = ntohs(header->org_port);
+  msg_id_seed.ip   = ntohl(header->org_ip);
   msg_id_seed.time = time(NULL);
   header->msg_id = SuperFastHash((const char*) &msg_id_seed, sizeof(msg_id_seed));
 }
