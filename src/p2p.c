@@ -25,8 +25,8 @@ static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_
     time_t time;
   } msg_id_seed;
 
-  header->version = 1;
-  header->ttl = 5;
+  header->version = P_VERSION;
+  header->ttl = MAX_TTL;
   header->msg_type = msg_type;
   header->length = 0;
 
@@ -37,6 +37,10 @@ static void p2p_set_header(p2p_struct_t* p2p, struct P2P_h* header, uint8_t msg_
   msg_id_seed.ip   = ntohl(header->org_ip);
   msg_id_seed.time = time(NULL);
   header->msg_id = htonl(SuperFastHash((const char*) &msg_id_seed, sizeof(msg_id_seed)));
+}
+
+void p2p_init(p2p_struct_t* p2p) {
+  memset(p2p, 0, sizeof(p2p));
 }
 
 int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
@@ -51,7 +55,6 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   char* buffer_pos;
   socklen_t l_add_len;
 
-  memset(p2p, 0, sizeof(p2p));
   memset(&h_addr, 0, sizeof(h_addr));
   /* We connect using TCP/Ipv4 */
   h_addr.sin_family = AF_INET;
@@ -60,6 +63,10 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   /* Parse the port string in integer (atoi) and convert to network byte order
    * (htons) */
   h_addr.sin_port = htons(atoi(port));
+
+	if(h_addr.sin_addr.s_addr == INADDR_NONE) {
+		return -1;
+	}
 
   /* Create the socket :
    *  - AF_INET (equivalent to PF_INET) : IPv4
@@ -126,4 +133,58 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
 
 void p2p_close(p2p_struct_t* p2p) {
   close(p2p->client_sock);
+  close(p2p->server_sock);
+}
+
+int p2p_listen(p2p_struct_t* p2p, char* host, char* port) {
+	int call_result;
+	int server_sock;
+	struct sockaddr_in server_addr;
+	int port_as_int;
+
+	port_as_int = atoi(port);
+	if(port_as_int <= 0) {
+		port_as_int = PORT_DEFAULT;
+	}
+
+	/* Create the socket, see p2p_join for an explanation of the parameters. */
+	if((server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+		return server_sock;
+	}
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port_as_int);
+	server_addr.sin_addr.s_addr = inet_addr(host);
+	if(server_addr.sin_addr.s_addr == INADDR_NONE) {
+		server_addr.sin_addr.s_addr = INADDR_ANY;
+	}
+
+	if((call_result = bind(server_sock, (struct sockaddr*) &server_addr,
+					sizeof(server_addr))) != 0) {
+		close(server_sock);
+		return call_result;
+	}
+
+	if((call_result = listen(server_sock, MAX_WAITING_CLIENTS)) < 0) {
+		close(server_sock);
+		return call_result;
+	}
+
+	p2p->server_sock = server_sock;
+	p2p->server_addr = server_addr;
+	return server_sock;
+}
+
+int p2p_accept(p2p_struct_t* p2p) {
+	int peer_socket;
+	struct sockaddr_in peer_addr;
+
+	/* accept a peer */
+	if((peer_socket = accept(p2p->server_sock, (struct sockaddr*) &peer_addr,
+												sizeof(peer_addr))) < 0) {
+		close(peer_socket);
+	}
+
+	return peer_socket;
 }

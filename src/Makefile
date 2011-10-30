@@ -1,12 +1,13 @@
 CC=gcc
 CFLAGS=-Wall -pedantic -ansi
+LIBS=
 OBJS=p2p.o sfhash.o
 OUT=p2p
 
 $(OUT): main.c $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) $(LIBS) -o $@ $^
 
-all: p2p
+all: $(OUT)
 
 clean:
 	rm -f *.o $(OUT)
