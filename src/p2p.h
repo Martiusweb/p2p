@@ -70,6 +70,18 @@ typedef union {
 	p2p_msg_join_response_t join_response;
 } p2p_fixed_msg_t;
 
+/* Query hit structures */
+typedef struct {
+  uint16_t id;
+  uint32_t value;
+} p2p_qhit_resource_t;
+
+typedef struct {
+  p2p_header_t header;
+  uint16_t nb_entries;
+  p2p_qhit_resource_t* entries;
+} p2p_qhit_t;
+
 /**
  * Initializes the internal p2p structure.
  */
@@ -136,7 +148,24 @@ int p2p_accept(p2p_struct_t* p2p);
  *
  * You should not use this method directly but use a wrapper which know which
  * socket to use.
+ *
+ * On error, the message pointer points to 0.
  */
 int p2p_alloc_read_message(p2p_struct_t* p2p, int socket, char** message);
+
+/**
+ * Reads a query hit.
+ *
+ * Returns a negative value in case of error. If the message read is not the
+ * expected one, this method will fail.
+ *
+ * Returns a negative value on error.
+ *
+ * An array of query resources will be allocated if any. If there is no entry,
+ * the ressource array points to null.
+ *
+ * On error, the message pointer points to 0.
+ */
+int p2p_read_query_hit(p2p_struct_t* p2p, p2p_qhit_t* query_hit);
 
 #endif

@@ -104,6 +104,10 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
 
   /* receive join acknowledgement, I except this type of message, if the message
    * is not the right one, the behavior may be undefined.
+   *
+   * This shall be updated to use a more flexible and bulletproof method, but
+   * here it works. It will be cleaned up by design with a non-blocking (io
+   * events) architecture.
    */
 	if((call_state = p2p_read_fixed_message(p2p, (p2p_fixed_msg_t*) &join_response)) < 1) {
 		close(client_sock);
@@ -254,3 +258,52 @@ int p2p_alloc_read_message(p2p_struct_t* p2p, int socket, char** message) {
   return bytes_read;
 }
 
+int p2p_read_query_hit(p2p_struct_t* p2p, p2p_qhit_t* query_hit) {
+  int bytes_read;
+  char* msg_buffer;
+  p2p_header_t* header;
+  char* body;
+  p2p_qhit_resource_t* entries;
+  uint16_t entry_idx;
+
+  if((bytes_read = p2p_alloc_read_message(p2p, p2p->client_sock, &msg_buffer)) < 1) {
+    *message = 0;
+    return -1;
+  }
+
+  header = (p2p_header_t) msg_buffer;
+  body = msg_buffer + sizeof(p2p_header_t)
+
+  if(header->msg_type != MSG_QHIT) {
+    free(msg_buffer);
+    *message = 0;
+    return -2;
+  }
+
+  /* Decode the message... */
+  /* ... read the number of entries */
+  query_hit->nb_entries = ntohs(body);
+
+  if(query_hit->nb_entries < 1) {
+    query_hit->entries = 0;
+  }
+  else {
+    body += sizeof(uint32_t);
+    /* allocate enough memory to read the resources */
+    entries = (p2p_qhit_resource_t*) malloc(query_hit->nb_entries *
+        sizeof(p2p_qhit_resource_t));
+
+    /* read the entries */
+    for(entry_idx = 0; entry_idx < query_hit->nb_entries; ++entry_idx) {
+      entries[entry_idx].id = ntohs((uint16_t) *body);
+      body += sizeof(uint32_t);
+      entries[entry_idx].value = ntohl((uint32_t) *body);
+      body += sizeof(uint32_t);
+    }
+
+    query_hit->entries = entries;
+  }
+
+  free(msg_buffer);
+  return bytes_read;
+}
