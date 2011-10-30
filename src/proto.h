@@ -2,7 +2,6 @@
 #define PROTO_H
 
 #include <sys/socket.h>
-#include <netinet/in.h>
 
 /* Minimum length of PONG body for network probing response */
 #define PONG_MINLEN     (sizeof(struct P2P_pong_front))

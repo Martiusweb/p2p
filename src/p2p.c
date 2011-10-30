@@ -39,6 +39,10 @@ static void p2p_set_header(p2p_struct_t* p2p, p2p_header_t* header, uint8_t msg_
   header->msg_id = htonl(SuperFastHash((const char*) &msg_id_seed, sizeof(msg_id_seed)));
 }
 
+void p2p_init(p2p_struct_t* p2p) {
+  memset(p2p, 0, sizeof(p2p));
+}
+
 int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   struct sockaddr_in h_addr;
   struct sockaddr_in l_addr;
@@ -48,7 +52,6 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   p2p_msg_join_response_t join_response;
   socklen_t l_add_len;
 
-  memset(p2p, 0, sizeof(p2p));
   memset(&h_addr, 0, sizeof(h_addr));
   /* We connect using TCP/Ipv4 */
   h_addr.sin_family = AF_INET;
@@ -57,6 +60,10 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   /* Parse the port string in integer (atoi) and convert to network byte order
    * (htons) */
   h_addr.sin_port = htons(atoi(port));
+
+	if(h_addr.sin_addr.s_addr == INADDR_NONE) {
+		return -1;
+	}
 
   /* Create the socket :
    *  - AF_INET (equivalent to PF_INET) : IPv4
@@ -98,7 +105,7 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
   /* receive join acknowledgement, I except this type of message, if the message
    * is not the right one, the behavior may be undefined.
    */
-	if((call_state = p2p_read_message(p2p, (p2p_fixed_msg_t*) &join_response)) < 1) {
+	if((call_state = p2p_read_fixed_message(p2p, (p2p_fixed_msg_t*) &join_response)) < 1) {
 		close(client_sock);
 		return call_state;
 	}
@@ -117,9 +124,64 @@ int p2p_join(p2p_struct_t* p2p, char* host, char* port) {
 
 void p2p_close(p2p_struct_t* p2p) {
   close(p2p->client_sock);
+  close(p2p->server_sock);
 }
 
-int p2p_read_message(p2p_struct_t* p2p, p2p_fixed_msg_t* message) {
+int p2p_listen(p2p_struct_t* p2p, char* host, char* port) {
+	int call_result;
+	int server_sock;
+	struct sockaddr_in server_addr;
+	int port_as_int;
+
+	port_as_int = atoi(port);
+	if(port_as_int <= 0) {
+		port_as_int = PORT_DEFAULT;
+	}
+
+	/* Create the socket, see p2p_join for an explanation of the parameters. */
+	if((server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+		return server_sock;
+	}
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port_as_int);
+	server_addr.sin_addr.s_addr = inet_addr(host);
+	if(server_addr.sin_addr.s_addr == INADDR_NONE) {
+		server_addr.sin_addr.s_addr = INADDR_ANY;
+	}
+
+	if((call_result = bind(server_sock, (struct sockaddr*) &server_addr,
+					sizeof(server_addr))) != 0) {
+		close(server_sock);
+		return call_result;
+	}
+
+	if((call_result = listen(server_sock, MAX_WAITING_CLIENTS)) < 0) {
+		close(server_sock);
+		return call_result;
+	}
+
+	p2p->server_sock = server_sock;
+	p2p->server_addr = server_addr;
+	return server_sock;
+}
+
+int p2p_accept(p2p_struct_t* p2p) {
+	int peer_socket;
+	struct sockaddr_in peer_addr;
+  socklen_t addr_ln;
+
+	/* accept a peer */
+  if((peer_socket = accept(p2p->server_sock, (struct sockaddr*) &peer_addr,
+          &addr_ln)) < 0) {
+		close(peer_socket);
+	}
+
+	return peer_socket;
+}
+
+int p2p_read_fixed_message(p2p_struct_t* p2p, p2p_fixed_msg_t* message) {
 	char buffer[sizeof(p2p_fixed_msg_t)];
 	int bytes_recvd;
 
@@ -148,5 +210,47 @@ int p2p_query(p2p_struct_t* p2p, char* key, size_t length) {
 
 	free(query);
 	return 0;
+}
+
+int p2p_alloc_read_message(p2p_struct_t* p2p, int socket, char** message) {
+  char* message_buffer;
+  char* body_buffer;
+  int bytes_read;
+  int bytes_recvd;
+  p2p_header_t message_header;
+
+  /* read header, try to get the message length */
+  if((bytes_recvd = recv(socket, (char*) &message_header, sizeof(p2p_header_t),
+          0)) < 1) {
+    /* Cannot read */
+    *message = 0;
+    return -1;
+  }
+  bytes_read = bytes_recvd;
+
+  /* update the structure to get the proper endianness */
+  message_header.org_port = ntohs(message_header.org_port);
+  message_header.length   = ntohs(message_header.length);
+  message_header.org_ip   = ntohl(message_header.org_ip);
+  message_header.msg_id   = ntohl(message_header.msg_id);
+
+  /* Get the message length and allocate memory */
+  message_buffer = (char*) malloc(sizeof(p2p_header_t) + message_header.length);
+
+  /* Read the full message */
+  body_buffer = message_buffer + sizeof(p2p_header_t);
+
+  if((bytes_recvd = recv(socket, body_buffer, message_header.length, 0)) < 1) {
+    free(message_buffer);
+    *message = 0;
+    return -1;
+  }
+  bytes_read += bytes_recvd;
+
+  /* copy the header into the returned memory trunk */
+  memcpy(message_buffer, &message_header, sizeof(p2p_header_t));
+
+  *message = message_buffer;
+  return bytes_read;
 }
 
