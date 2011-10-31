@@ -267,22 +267,20 @@ int p2p_read_query_hit(p2p_struct_t* p2p, p2p_qhit_t* query_hit) {
   uint16_t entry_idx;
 
   if((bytes_read = p2p_alloc_read_message(p2p, p2p->client_sock, &msg_buffer)) < 1) {
-    *message = 0;
     return -1;
   }
 
-  header = (p2p_header_t) msg_buffer;
-  body = msg_buffer + sizeof(p2p_header_t)
+  header = (p2p_header_t*) msg_buffer;
+  body = msg_buffer + sizeof(p2p_header_t);
 
   if(header->msg_type != MSG_QHIT) {
     free(msg_buffer);
-    *message = 0;
     return -2;
   }
 
   /* Decode the message... */
   /* ... read the number of entries */
-  query_hit->nb_entries = ntohs(body);
+  query_hit->nb_entries = ntohs((uint16_t) *body);
 
   if(query_hit->nb_entries < 1) {
     query_hit->entries = 0;
