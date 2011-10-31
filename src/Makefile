@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -pedantic -ansi
+CFLAGS=-Wall -pedantic -ansi -g
 LIBS=
 OBJS=p2p.o sfhash.o
 OUT=p2p

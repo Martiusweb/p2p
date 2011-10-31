@@ -199,7 +199,7 @@ int p2p_read_fixed_message(p2p_struct_t* p2p, p2p_fixed_msg_t* message) {
 int p2p_query(p2p_struct_t* p2p, char* key, size_t length) {
 	char* query = (char*) malloc(sizeof(p2p_header_t)+length);
 
-	memset(&query, 0, sizeof(query));
+	memset(query, 0, sizeof(query));
   p2p_set_header(p2p, (p2p_header_t*) query, MSG_QUERY);
 	((p2p_header_t*) query)->length = length;
 	
