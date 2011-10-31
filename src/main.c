@@ -73,6 +73,8 @@ int main(int argc, char* argv[]) {
     /* I'm able to read query hints here */
   }
   else {
+    p2p_qhit_t query_hit;
+
     /* Act as a client */
     printf("Trying to join peer at %s...\n", arg_ip);
 
@@ -80,6 +82,20 @@ int main(int argc, char* argv[]) {
       fprintf(stderr, "Connection to peer failed. Aborting.\n");
       p2p_close(&p2p);
       return -1;
+    }
+
+    /* Send a query */
+    if(p2p_query(&p2p, "foo", 3) < 0) {
+      fprintf(stderr, "Can not send a query to closest peer\n");
+      p2p_close(&p2p);
+      return -2;
+    }
+
+    /* Wait for hits to read */
+    if(p2p_read_query_hit(&p2p, &query_hit) < 1) {
+      fprintf(stderr, "Can not read query hit\n");
+      p2p_close(&p2p);
+      return -2;
     }
   }
 
